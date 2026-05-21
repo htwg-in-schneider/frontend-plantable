@@ -10,7 +10,9 @@ defineProps({
 <template>
   <article class="pflanzenkarte">
     <div class="pflanzenbild">
-      <img :src="pflanze.bild" :alt="pflanze.name" />
+      <RouterLink :to="{ name: 'pflanze-detail', params: { id: pflanze.id } }" class="bild-link">
+        <img :src="pflanze.bild" :alt="pflanze.name" />
+      </RouterLink>
     </div>
     <div class="pflanzen-info">
       <div class="pflanzen-kopf">
@@ -51,6 +53,12 @@ defineProps({
   aspect-ratio: 4 / 5;
   overflow: hidden;
   background-color: var(--flaeche-hell);
+}
+
+.bild-link {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .pflanzenbild img {

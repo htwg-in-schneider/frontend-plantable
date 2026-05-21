@@ -1,22 +1,31 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, reactive } from 'vue'
 import PflanzenKarte from '@/components/PflanzenKarte.vue'
 
-const pflegeOptionen = ['Anfänger', 'Fortgeschritten', 'Experte']
-const aktivePflege = ref('Anfänger')
+const pflegeOptionen = [
+  { wert: 'leicht',  label: 'Pflegeleicht' },
+  { wert: 'mittel',  label: 'Mittel' },
+  { wert: 'experte', label: 'Experte' },
+]
+const aktivePflege = ref(null)
 
-const lichtOptionen = ['Wenig Licht', 'Helles Indirekt']
-const aktivesLicht = ref('Helles Indirekt')
+const lichtOptionen = [
+  { wert: 'LOW',    label: 'Wenig Licht' },
+  { wert: 'MEDIUM', label: 'Indirektes Licht' },
+  { wert: 'BRIGHT', label: 'Helles Indirekt' },
+  { wert: 'DIRECT', label: 'Direkte Sonne' },
+]
+const aktivesLicht = ref(null)
 
-const preisMax = ref(150)
+const preisMax = ref(250)
 
-const kategorien = ref([
-  { id: 'aroids', label: 'Aroids', aktiv: false },
-  { id: 'sukkulenten', label: 'Sukkulenten', aktiv: false },
-  { id: 'farne', label: 'Farne', aktiv: false },
-  { id: 'furz', label: 'furz', aktiv: false },
-
-])
+const vordefinierteTagsListe = [
+  'Anfänger', 'Experte', 'Luftreinigend', 'Haustierfreundlich',
+  'Tropisch', 'Sukkulente', 'Rankpflanze', 'Schattenpflanze',
+  'Sonnenliebend', 'Hängepflanze', 'Blühend', 'Heilpflanze', 'Zimmerpflanze',
+]
+const aktiveTags = ref([])
+const showMobileFilter = ref(false)
 
 // Backend-Daten
 const rawPlants = ref([])
@@ -43,12 +52,104 @@ const pflanzen = computed(() =>
       pflegestufe: care.stufe,
       pflegeLabel: care.label,
       pflegeIcon: care.icon,
-      preis: null,
+      licht: p.lightRequirement,
+      preis: p.price ?? null,
+      tags: (p.tags ?? []).map(t => t.name),
     }
   })
 )
 
-onMounted(async () => {
+// Verfügbare Tags aus den geladenen Daten
+const verfuegbareTags = computed(() => {
+  const tagSet = new Set(pflanzen.value.flatMap(p => p.tags))
+  return [...tagSet].sort()
+})
+
+// Suche
+const suchbegriff = ref('')
+
+const gefiltertePflanzen = computed(() => {
+  let result = pflanzen.value
+
+  const q = suchbegriff.value.toLowerCase().trim()
+  if (q) {
+    result = result.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.latinName.toLowerCase().includes(q)
+    )
+  }
+
+  if (aktivePflege.value) {
+    result = result.filter(p => p.pflegestufe === aktivePflege.value)
+  }
+
+  if (aktivesLicht.value) {
+    result = result.filter(p => p.licht === aktivesLicht.value)
+  }
+
+  result = result.filter(p => p.preis === null || p.preis <= preisMax.value)
+
+  if (aktiveTags.value.length > 0) {
+    result = result.filter(p =>
+      aktiveTags.value.some(tag => p.tags.includes(tag))
+    )
+  }
+
+  return result
+})
+
+// Neues Produkt Modal
+const showNeuModal = ref(false)
+const saving = ref(false)
+const neuForm = reactive({
+  botanicalName: '',
+  commonName: '',
+  slug: '',
+  description: '',
+  mainImageUrl: '',
+  careLevel: 'EASY',
+  lightRequirement: 'MEDIUM',
+  isPetFriendly: false,
+  isAirPurifying: false,
+  originRegion: '',
+  tags: [],
+})
+
+function oeffneModal() {
+  Object.assign(neuForm, {
+    botanicalName: '', commonName: '', slug: '', description: '',
+    mainImageUrl: '', careLevel: 'EASY', lightRequirement: 'MEDIUM',
+    isPetFriendly: false, isAirPurifying: false, originRegion: '', tags: [],
+  })
+  showNeuModal.value = true
+}
+
+async function erstellePflanze() {
+  saving.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/plants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...neuForm, tags: neuForm.tags.map(name => ({ name })) }),
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const neu = await response.json()
+    rawPlants.value.push(neu)
+    showNeuModal.value = false
+  } catch (err) {
+    alert('Fehler beim Erstellen: ' + err.message)
+  } finally {
+    saving.value = false
+  }
+}
+
+function toggleTag(tagArray, tag) {
+  const idx = tagArray.indexOf(tag)
+  if (idx >= 0) tagArray.splice(idx, 1)
+  else tagArray.push(tag)
+}
+
+async function ladePflanzen() {
   try {
     const response = await fetch('http://localhost:8080/api/plants')
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -59,16 +160,25 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(ladePflanzen)
 </script>
 
 <template>
   <main class="katalog-seite">
 
-    <aside class="katalog-sidebar">
+    <div v-if="showMobileFilter" class="mobile-filter-backdrop" @click="showMobileFilter = false"></div>
+
+    <aside class="katalog-sidebar" :class="{ 'mobile-offen': showMobileFilter }">
       <div class="filter-kopf">
-        <h2>Filter</h2>
-        <span class="etikett">Auswahl verfeinern</span>
+        <div>
+          <h2>Filter</h2>
+          <span class="etikett">Auswahl verfeinern</span>
+        </div>
+        <button class="mobile-filter-schliessen" @click="showMobileFilter = false">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
 
       <nav class="filter-nav">
@@ -81,11 +191,11 @@ onMounted(async () => {
           <div class="filter-pillen">
             <button
               v-for="option in pflegeOptionen"
-              :key="option"
+              :key="option.wert"
               class="filter-pille"
-              :class="{ aktiv: aktivePflege === option }"
-              @click="aktivePflege = option"
-            >{{ option }}</button>
+              :class="{ aktiv: aktivePflege === option.wert }"
+              @click="aktivePflege = aktivePflege === option.wert ? null : option.wert"
+            >{{ option.label }}</button>
           </div>
         </div>
 
@@ -97,11 +207,11 @@ onMounted(async () => {
           <div class="filter-pillen">
             <button
               v-for="option in lichtOptionen"
-              :key="option"
+              :key="option.wert"
               class="filter-pille"
-              :class="{ aktiv: aktivesLicht === option }"
-              @click="aktivesLicht = option"
-            >{{ option }}</button>
+              :class="{ aktiv: aktivesLicht === option.wert }"
+              @click="aktivesLicht = aktivesLicht === option.wert ? null : option.wert"
+            >{{ option.label }}</button>
           </div>
         </div>
 
@@ -114,20 +224,20 @@ onMounted(async () => {
             <input type="range" v-model="preisMax" min="10" max="250" />
             <div class="preis-bereich">
               <span>10 €</span>
-              <span>250 € +</span>
+              <span>bis {{ preisMax }} €</span>
             </div>
           </div>
         </div>
 
         <div class="filter-abschnitt">
           <div class="filter-titel">
-            <span class="material-symbols-outlined">potted_plant</span>
-            <span>Kategorien</span>
+            <span class="material-symbols-outlined">label</span>
+            <span>Tags</span>
           </div>
-          <div class="kategorien-liste">
-            <label v-for="kat in kategorien" :key="kat.id" class="kategorie-option">
-              <input type="checkbox" v-model="kat.aktiv" />
-              {{ kat.label }}
+          <div class="filter-checkbox-liste">
+            <label v-for="tag in verfuegbareTags" :key="tag" class="filter-checkbox-option">
+              <input type="checkbox" :value="tag" v-model="aktiveTags" />
+              {{ tag }}
             </label>
           </div>
         </div>
@@ -138,39 +248,139 @@ onMounted(async () => {
     <section class="katalog-inhalt">
 
       <div class="katalog-kopf">
-        <div>
-          <h1 class="katalog-titel">Botanisches Archiv</h1>
-          <p class="katalog-beschreibung">
-            Entdecke seltene Exemplare und beliebte Klassiker, kategorisiert für dein Wohnumfeld.
-          </p>
+        <div class="katalog-kopf-oben">
+          <div>
+            <h1 class="katalog-titel">Botanisches Archiv</h1>
+            <p class="katalog-beschreibung">
+              Entdecke seltene Exemplare und beliebte Klassiker, kategorisiert für dein Wohnumfeld.
+            </p>
+          </div>
+
+
         </div>
-        <div class="sortier-bereich">
-          <span class="sortier-label">Sortieren nach:</span>
-          <button class="sortier-button">
-            Neueste Ankünfte
-            <span class="material-symbols-outlined">expand_more</span>
+        <div class="katalog-kopf-unten">
+          <button class="btn-mobile-filter" @click="showMobileFilter = true">
+            <span class="material-symbols-outlined">tune</span>
+          </button>
+          <div class="such-wrapper">
+            <span class="material-symbols-outlined">search</span>
+            <input
+              v-model="suchbegriff"
+              type="search"
+              placeholder="Pflanze oder lat. Name suchen…"
+              class="such-input"
+            />
+          </div>
+          <button class="btn-neu" @click="oeffneModal">
+            <span class="material-symbols-outlined">add</span>
+            <span class="btn-neu-text">Neue Pflanze</span>
           </button>
         </div>
       </div>
 
       <div v-if="loading" class="status-meldung">
-  Pflanzen werden geladen…
-</div>
+        Pflanzen werden geladen…
+      </div>
 
-<div v-else-if="error" class="status-meldung fehler">
-  Fehler beim Laden: {{ error }}
-</div>
+      <div v-else-if="error" class="status-meldung fehler">
+        Fehler beim Laden: {{ error }}
+      </div>
 
-<div v-else class="pflanzen-raster">
-  <PflanzenKarte v-for="pflanze in pflanzen" :key="pflanze.id" :pflanze="pflanze" />
-</div>
-
-      <div class="mehr-laden">
-        <button class="btn-mehr">Weitere Exemplare laden</button>
+      <div v-else class="pflanzen-raster">
+        <PflanzenKarte v-for="pflanze in gefiltertePflanzen" :key="pflanze.id" :pflanze="pflanze" />
       </div>
 
     </section>
   </main>
+
+  <!-- ── Neues Produkt Modal ── -->
+  <Teleport to="body">
+    <div v-if="showNeuModal" class="modal-overlay" @click.self="showNeuModal = false">
+      <div class="modal">
+        <div class="modal-kopf">
+          <h2>Neue Pflanze anlegen</h2>
+          <button class="modal-schliessen" @click="showNeuModal = false">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <form class="form-grid" @submit.prevent="erstellePflanze">
+          <label>
+            <span>Botanischer Name *</span>
+            <input v-model="neuForm.botanicalName" required />
+          </label>
+          <label>
+            <span>Trivialname *</span>
+            <input v-model="neuForm.commonName" required />
+          </label>
+          <label>
+            <span>Slug *</span>
+            <input v-model="neuForm.slug" required />
+          </label>
+          <label>
+            <span>Herkunft</span>
+            <input v-model="neuForm.originRegion" />
+          </label>
+          <label class="form-full">
+            <span>Bild-URL</span>
+            <input v-model="neuForm.mainImageUrl" type="url" />
+          </label>
+          <label class="form-full">
+            <span>Beschreibung</span>
+            <textarea v-model="neuForm.description" rows="4"></textarea>
+          </label>
+          <label>
+            <span>Pflegelevel *</span>
+            <select v-model="neuForm.careLevel" required>
+              <option value="EASY">Pflegeleicht</option>
+              <option value="MEDIUM">Mittel</option>
+              <option value="HARD">Experte</option>
+            </select>
+          </label>
+          <label>
+            <span>Lichtbedarf *</span>
+            <select v-model="neuForm.lightRequirement" required>
+              <option value="LOW">Wenig Licht</option>
+              <option value="MEDIUM">Indirektes Licht</option>
+              <option value="BRIGHT">Helles, indirektes Licht</option>
+              <option value="DIRECT">Direkte Sonne</option>
+            </select>
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" v-model="neuForm.isPetFriendly" />
+            <span>Haustierfreundlich</span>
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" v-model="neuForm.isAirPurifying" />
+            <span>Luftreinigend</span>
+          </label>
+
+          <div class="form-full form-tags-block">
+            <span class="form-tags-label">Tags</span>
+            <div class="form-tags-pillen">
+              <button
+                v-for="tag in vordefinierteTagsListe"
+                :key="tag"
+                type="button"
+                class="form-tag-pille"
+                :class="{ aktiv: neuForm.tags.includes(tag) }"
+                @click="toggleTag(neuForm.tags, tag)"
+              >{{ tag }}</button>
+            </div>
+          </div>
+
+          <div class="form-aktionen form-full">
+            <button type="submit" class="btn-speichern" :disabled="saving">
+              {{ saving ? 'Speichere…' : 'Anlegen' }}
+            </button>
+            <button type="button" class="btn-abbrechen" @click="showNeuModal = false">
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -270,13 +480,13 @@ onMounted(async () => {
   margin-top: 0.5rem;
 }
 
-.kategorien-liste {
+.filter-checkbox-liste {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.kategorie-option {
+.filter-checkbox-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -286,9 +496,9 @@ onMounted(async () => {
   transition: color 0.2s;
 }
 
-.kategorie-option:hover { color: var(--gruen); }
+.filter-checkbox-option:hover { color: var(--gruen); }
 
-.kategorie-option input[type="checkbox"] {
+.filter-checkbox-option input[type="checkbox"] {
   accent-color: var(--terrakotta);
   width: 0.875rem;
   height: 0.875rem;
@@ -299,12 +509,59 @@ onMounted(async () => {
 
 .katalog-kopf {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 1.5rem;
   margin-bottom: 3rem;
 }
+
+.katalog-kopf-oben {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.katalog-kopf-unten {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.such-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--flaeche);
+  border-radius: var(--radius-rund);
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.such-wrapper:focus-within {
+  border-color: var(--gruen);
+  background-color: #fff;
+}
+
+.such-wrapper .material-symbols-outlined {
+  font-size: 1.125rem;
+  color: var(--text-gedimmt);
+  flex-shrink: 0;
+}
+
+.such-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--gruen-dunkel);
+  font-family: inherit;
+}
+
+.such-input::placeholder { color: var(--text-gedimmt); }
 
 .katalog-titel {
   font-size: clamp(2.5rem, 5vw, 3.5rem);
@@ -318,36 +575,6 @@ onMounted(async () => {
   font-weight: 300;
   max-width: 28rem;
 }
-
-.sortier-bereich {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-shrink: 0;
-}
-
-.sortier-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-gedimmt);
-}
-
-.sortier-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--gruen);
-  background-color: var(--flaeche);
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-rund);
-  transition: background-color 0.2s;
-}
-
-.sortier-button:hover { background-color: var(--flaeche-dunkel); }
-.sortier-button .material-symbols-outlined { font-size: 1rem; }
 
 /* ── Pflanzen-Raster ── */
 .pflanzen-raster {
@@ -364,28 +591,259 @@ onMounted(async () => {
   .pflanzen-raster { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* ── Mehr laden ── */
-.mehr-laden {
-  display: flex;
-  justify-content: center;
-  margin-top: 4rem;
-}
 
-.btn-mehr {
-  padding: 0.875rem 2.5rem;
+/* ── Neue Pflanze Button ── */
+.btn-neu {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
   border-radius: var(--radius-rund);
-  border: 1px solid var(--gruen);
-  color: var(--gruen);
+  background-color: var(--gruen);
+  color: #fff;
+  font-size: 0.875rem;
   font-weight: 500;
-  font-size: 1rem;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color 0.2s;
+}
+.btn-neu:hover { background-color: var(--gruen-dunkel); }
+.btn-neu .material-symbols-outlined { font-size: 1rem; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
 }
 
-.btn-mehr:hover { background-color: var(--gruen); color: #fff; }
+.modal {
+  background: var(--hintergrund);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(62, 54, 49, 0.2);
+}
+
+.modal-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.modal-kopf h2 {
+  font-size: 1.25rem;
+  color: var(--gruen-dunkel);
+  margin: 0;
+}
+
+.modal-schliessen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: var(--text-gedimmt);
+  transition: background-color 0.2s;
+}
+.modal-schliessen:hover { background-color: var(--flaeche-dunkel); }
+.modal-schliessen .material-symbols-outlined { font-size: 1.25rem; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.form-full { grid-column: 1 / -1; }
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--gruen-dunkel);
+  font-weight: 500;
+}
+
+.form-grid input,
+.form-grid textarea,
+.form-grid select {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--flaeche-dunkel);
+  border-radius: var(--radius);
+  background: #fff;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.form-grid input:focus,
+.form-grid textarea:focus,
+.form-grid select:focus {
+  outline: none;
+  border-color: var(--gruen);
+}
+
+.form-checkbox {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+.form-checkbox input { width: 1rem; height: 1rem; }
+
+.form-aktionen {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.btn-speichern,
+.btn-abbrechen {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-rund);
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-speichern {
+  background-color: var(--gruen);
+  color: #fff;
+  border: none;
+}
+.btn-speichern:hover:not(:disabled) { background-color: var(--gruen-dunkel); }
+.btn-speichern:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-abbrechen {
+  background: transparent;
+  color: var(--text-leise);
+  border: 1px solid var(--flaeche-dunkel);
+}
+.btn-abbrechen:hover { background-color: var(--flaeche-dunkel); }
+
+/* ── Tag-Auswahl im Formular ── */
+.form-tags-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-tags-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--gruen-dunkel);
+}
+
+.form-tags-pillen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.form-tag-pille {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-rund);
+  border: 1px solid var(--flaeche-dunkel);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-leise);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.form-tag-pille:hover { background-color: var(--flaeche); }
+.form-tag-pille.aktiv { background-color: var(--gruen); color: #fff; border-color: var(--gruen); }
+
+/* ── Filter-Kopf ── */
+.filter-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+/* ── Mobile Filter Button (nur auf Mobile sichtbar) ── */
+.btn-mobile-filter {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-rund);
+  background-color: var(--flaeche);
+  color: var(--gruen-dunkel);
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+.btn-mobile-filter:hover { background-color: var(--flaeche-dunkel); }
+.btn-mobile-filter .material-symbols-outlined { font-size: 1.25rem; }
+
+.mobile-filter-schliessen {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: var(--text-gedimmt);
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+.mobile-filter-schliessen:hover { background-color: var(--flaeche-dunkel); }
+.mobile-filter-schliessen .material-symbols-outlined { font-size: 1.25rem; }
+
+.mobile-filter-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 199;
+}
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
-  .katalog-sidebar { display: none; }
-  .katalog-seite { padding-left: 1rem; padding-right: 1rem; }
+  .katalog-seite {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .form-grid { grid-template-columns: 1fr; }
+
+  .katalog-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-110%);
+    width: min(18rem, 85vw);
+    max-height: 100dvh;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    z-index: 200;
+    transition: transform 0.3s ease;
+    padding-top: calc(var(--header-hoehe) + 1.5rem);
+    box-shadow: 4px 0 32px rgba(62, 54, 49, 0.18);
+  }
+
+  .katalog-sidebar.mobile-offen {
+    transform: translateX(0);
+  }
+
+  .mobile-filter-backdrop { display: block; }
+  .btn-mobile-filter { display: inline-flex; }
+  .mobile-filter-schliessen { display: inline-flex; }
+
+  .katalog-kopf-unten { gap: 0.5rem; }
+
+  .btn-neu-text { display: none; }
+  .btn-neu { padding: 0.5rem 0.75rem; }
 }
 </style>
