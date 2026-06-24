@@ -2,7 +2,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import { communityApi } from '@/services/api'
+import { communityApi, plantsApi } from '@/services/api'
+import PflanzeFormular from '@/components/PflanzeFormular.vue'
 
 const router = useRouter()
 const { isAdmin } = useAuth()
@@ -27,17 +28,18 @@ const editingId = ref(null)
 const careLabels = { EASY: 'Pflegeleicht', MEDIUM: 'Mittel', HARD: 'Experte' }
 const lichtLabels = { LOW: 'Wenig Licht', MEDIUM: 'Indirektes Licht', BRIGHT: 'Helles Indirekt', DIRECT: 'Direkte Sonne' }
 
-const vordefinierteTagsListe = [
-  'Anfänger', 'Experte', 'Luftreinigend', 'Haustierfreundlich',
-  'Tropisch', 'Sukkulente', 'Rankpflanze', 'Schattenpflanze',
-  'Sonnenliebend', 'Hängepflanze', 'Blühend', 'Heilpflanze', 'Zimmerpflanze',
-]
-
 const pflanzeForm = reactive({
   botanicalName: '', commonName: '', slug: '', description: '',
   mainImageUrl: '', careLevel: 'EASY', lightRequirement: 'MEDIUM',
   isPetFriendly: false, isAirPurifying: false, originRegion: '',
   price: '', tags: [],
+  defaultWateringIntervalDays: null,
+  defaultMistingIntervalDays: null,
+  defaultFertilizingIntervalDays: null,
+  defaultLeafCleaningIntervalDays: null,
+  defaultRepottingIntervalDays: null,
+  defaultPruningIntervalDays: null,
+  defaultPestCheckIntervalDays: null,
 })
 
 const gefiltertePflanzen = computed(() => {
@@ -53,9 +55,7 @@ async function ladePflanzen() {
   plantsLoading.value = true
   plantsError.value = null
   try {
-    const r = await fetch('http://localhost:8080/api/plants')
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    rawPlants.value = await r.json()
+    rawPlants.value = await plantsApi.getAll()
   } catch (err) {
     plantsError.value = err.message
   } finally {
@@ -68,6 +68,10 @@ function oeffneNeuModal() {
     botanicalName: '', commonName: '', slug: '', description: '',
     mainImageUrl: '', careLevel: 'EASY', lightRequirement: 'MEDIUM',
     isPetFriendly: false, isAirPurifying: false, originRegion: '', price: '', tags: [],
+    defaultWateringIntervalDays: null, defaultMistingIntervalDays: null,
+    defaultFertilizingIntervalDays: null, defaultLeafCleaningIntervalDays: null,
+    defaultRepottingIntervalDays: null, defaultPruningIntervalDays: null,
+    defaultPestCheckIntervalDays: null,
   })
   modalModus.value = 'neu'
   editingId.value = null
@@ -88,16 +92,17 @@ function oeffneEditModal(plant) {
     originRegion:     plant.originRegion      ?? '',
     price:            plant.price             ?? '',
     tags:             (plant.tags ?? []).map(t => t.name),
+    defaultWateringIntervalDays:     plant.defaultWateringIntervalDays     ?? null,
+    defaultMistingIntervalDays:      plant.defaultMistingIntervalDays      ?? null,
+    defaultFertilizingIntervalDays:  plant.defaultFertilizingIntervalDays  ?? null,
+    defaultLeafCleaningIntervalDays: plant.defaultLeafCleaningIntervalDays ?? null,
+    defaultRepottingIntervalDays:    plant.defaultRepottingIntervalDays    ?? null,
+    defaultPruningIntervalDays:      plant.defaultPruningIntervalDays      ?? null,
+    defaultPestCheckIntervalDays:    plant.defaultPestCheckIntervalDays    ?? null,
   })
   modalModus.value = 'bearbeiten'
   editingId.value = plant.id
   showPflanzeModal.value = true
-}
-
-function toggleTag(tag) {
-  const idx = pflanzeForm.tags.indexOf(tag)
-  if (idx >= 0) pflanzeForm.tags.splice(idx, 1)
-  else pflanzeForm.tags.push(tag)
 }
 
 async function speicherePflanze() {
@@ -108,16 +113,9 @@ async function speicherePflanze() {
     tags: pflanzeForm.tags.map(name => ({ name })),
   }
   try {
-    const url = modalModus.value === 'neu'
-      ? 'http://localhost:8080/api/plants'
-      : `http://localhost:8080/api/plants/${editingId.value}`
-    const r = await fetch(url, {
-      method: modalModus.value === 'neu' ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    const saved = await r.json()
+    const saved = modalModus.value === 'neu'
+      ? await plantsApi.createPlant(body)
+      : await plantsApi.updatePlant(editingId.value, body)
     if (modalModus.value === 'neu') {
       rawPlants.value.push(saved)
     } else {
@@ -136,8 +134,7 @@ async function loeschePflanze(id) {
   if (!confirm('Pflanze wirklich löschen?')) return
   pflanzeDeleting.value = id
   try {
-    const r = await fetch(`http://localhost:8080/api/plants/${id}`, { method: 'DELETE' })
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    await plantsApi.deletePlant(id)
     rawPlants.value = rawPlants.value.filter(p => p.id !== id)
   } catch (err) {
     alert('Fehler beim Löschen: ' + err.message)
@@ -360,79 +357,17 @@ onMounted(ladePflanzen)
           </button>
         </div>
 
-        <form class="form-grid" @submit.prevent="speicherePflanze">
-          <label>
-            <span>Trivialname *</span>
-            <input v-model="pflanzeForm.commonName" required />
-          </label>
-          <label>
-            <span>Botanischer Name *</span>
-            <input v-model="pflanzeForm.botanicalName" required />
-          </label>
-          <label>
-            <span>Slug *</span>
-            <input v-model="pflanzeForm.slug" required />
-          </label>
-          <label>
-            <span>Herkunft</span>
-            <input v-model="pflanzeForm.originRegion" />
-          </label>
-          <label>
-            <span>Preis (€)</span>
-            <input v-model="pflanzeForm.price" type="number" min="0" step="0.01" placeholder="z.B. 12.99" />
-          </label>
-          <label>
-            <span>Pflegelevel *</span>
-            <select v-model="pflanzeForm.careLevel" required>
-              <option value="EASY">Pflegeleicht</option>
-              <option value="MEDIUM">Mittel</option>
-              <option value="HARD">Experte</option>
-            </select>
-          </label>
-          <label>
-            <span>Lichtbedarf *</span>
-            <select v-model="pflanzeForm.lightRequirement" required>
-              <option value="LOW">Wenig Licht</option>
-              <option value="MEDIUM">Indirektes Licht</option>
-              <option value="BRIGHT">Helles, indirektes Licht</option>
-              <option value="DIRECT">Direkte Sonne</option>
-            </select>
-          </label>
-          <label class="form-full">
-            <span>Bild-URL</span>
-            <input v-model="pflanzeForm.mainImageUrl" type="url" placeholder="https://…" />
-          </label>
-          <label class="form-full">
-            <span>Beschreibung</span>
-            <textarea v-model="pflanzeForm.description" rows="3"></textarea>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="pflanzeForm.isPetFriendly" />
-            <span>Haustierfreundlich</span>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="pflanzeForm.isAirPurifying" />
-            <span>Luftreinigend</span>
-          </label>
-          <div class="form-full form-tags-block">
-            <span class="form-tags-label">Tags</span>
-            <div class="form-tags-pillen">
-              <button
-                v-for="tag in vordefinierteTagsListe"
-                :key="tag"
-                type="button"
-                class="form-tag-pille"
-                :class="{ aktiv: pflanzeForm.tags.includes(tag) }"
-                @click="toggleTag(tag)"
-              >{{ tag }}</button>
-            </div>
-          </div>
-          <div class="form-aktionen form-full">
-            <button type="submit" class="btn-speichern" :disabled="pflanzeSaving">
-              {{ pflanzeSaving ? 'Speichere…' : (modalModus === 'neu' ? 'Anlegen' : 'Speichern') }}
-            </button>
-            <button type="button" class="btn-abbrechen" @click="showPflanzeModal = false">Abbrechen</button>
-          </div>
+        <form @submit.prevent="speicherePflanze">
+          <PflanzeFormular :form="pflanzeForm">
+            <template #aktionen>
+              <div class="form-aktionen">
+                <button type="submit" class="btn-speichern" :disabled="pflanzeSaving">
+                  {{ pflanzeSaving ? 'Speichere…' : (modalModus === 'neu' ? 'Anlegen' : 'Speichern') }}
+                </button>
+                <button type="button" class="btn-abbrechen" @click="showPflanzeModal = false">Abbrechen</button>
+              </div>
+            </template>
+          </PflanzeFormular>
         </form>
       </div>
     </div>
@@ -766,66 +701,6 @@ onMounted(ladePflanzen)
 }
 .modal-schliessen:hover { background-color: var(--flaeche-dunkel); }
 .modal-schliessen .material-symbols-outlined { font-size: 1.25rem; }
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.form-full { grid-column: 1 / -1; }
-
-.form-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  color: var(--gruen-dunkel);
-  font-weight: 500;
-}
-
-.form-grid input,
-.form-grid textarea,
-.form-grid select {
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--flaeche-dunkel);
-  border-radius: var(--radius);
-  background: #fff;
-  font-size: 0.875rem;
-  font-family: inherit;
-}
-
-.form-grid input:focus,
-.form-grid textarea:focus,
-.form-grid select:focus {
-  outline: none;
-  border-color: var(--gruen);
-}
-
-.form-checkbox {
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
-}
-.form-checkbox input { width: 1rem; height: 1rem; }
-
-.form-tags-block { display: flex; flex-direction: column; gap: 0.5rem; }
-.form-tags-label { font-size: 0.875rem; font-weight: 500; color: var(--gruen-dunkel); }
-.form-tags-pillen { display: flex; flex-wrap: wrap; gap: 0.375rem; }
-
-.form-tag-pille {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-rund);
-  border: 1px solid var(--flaeche-dunkel);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-leise);
-  background: transparent;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
-.form-tag-pille:hover { background-color: var(--flaeche); }
-.form-tag-pille.aktiv { background-color: var(--gruen); color: #fff; border-color: var(--gruen); }
 
 .form-aktionen {
   display: flex;

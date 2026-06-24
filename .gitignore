@@ -40,3 +40,8 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Environment variables
+.env.development
+.env.production
+.env.local

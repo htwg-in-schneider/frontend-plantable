@@ -1,13 +1,10 @@
-import { useAuth } from '@/composables/useAuth'
+import { getAuthHeaders } from '@/composables/useAuth'
 
 const API_BASE = 'http://localhost:8080/api'
 
 async function apiCall(endpoint, method = 'GET', body = null) {
-  const { getAuthHeaders } = useAuth()
-  const options = {
-    method,
-    headers: getAuthHeaders(),
-  }
+  const headers = await getAuthHeaders()
+  const options = { method, headers }
 
   if (body && (method === 'POST' || method === 'PUT')) {
     options.body = JSON.stringify(body)
@@ -63,5 +60,23 @@ export const usersApi = {
 export const plantsApi = {
   getAll: () => apiCall('/plants'),
   getById: (id) => apiCall(`/plants/${id}`),
+  createPlant: (data) => apiCall('/plants', 'POST', data),
+  updatePlant: (id, data) => apiCall(`/plants/${id}`, 'PUT', data),
   deletePlant: (id) => apiCall(`/plants/${id}`, 'DELETE'),
+}
+
+// UserPlants API (Dashboard – persönliche Pflanzensammlung)
+export const userPlantsApi = {
+  add: (plantId, nickname = null, acquiredAt = null) =>
+    apiCall('/user-plants', 'POST', { plantId, nickname, acquiredAt }),
+  getMyPlants: () => apiCall('/user-plants/me'),
+  logCare: (id, careType, action) =>
+    apiCall(`/user-plants/${id}/care`, 'POST', { careType, action }),
+  update: (id, data) => apiCall(`/user-plants/${id}`, 'PUT', data),
+  delete: (id) => apiCall(`/user-plants/${id}`, 'DELETE'),
+}
+
+// Dashboard API (Pflegeaufgaben gruppiert nach Fälligkeit)
+export const dashboardApi = {
+  getCareItems: () => apiCall('/dashboard/care-items'),
 }

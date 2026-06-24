@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted, computed, reactive } from 'vue'
 import { useAuth } from '@/composables/useAuth'
+import { plantsApi } from '@/services/api'
 import PflanzenKarte from '@/components/PflanzenKarte.vue'
+import PflanzeFormular from '@/components/PflanzeFormular.vue'
 
 const { isAdmin } = useAuth()
 
@@ -22,11 +24,6 @@ const aktivesLicht = ref(null)
 
 const preisMax = ref(250)
 
-const vordefinierteTagsListe = [
-  'Anfänger', 'Experte', 'Luftreinigend', 'Haustierfreundlich',
-  'Tropisch', 'Sukkulente', 'Rankpflanze', 'Schattenpflanze',
-  'Sonnenliebend', 'Hängepflanze', 'Blühend', 'Heilpflanze', 'Zimmerpflanze',
-]
 const aktiveTags = ref([])
 const showMobileFilter = ref(false)
 
@@ -105,24 +102,25 @@ const gefiltertePflanzen = computed(() => {
 const showNeuModal = ref(false)
 const saving = ref(false)
 const neuForm = reactive({
-  botanicalName: '',
-  commonName: '',
-  slug: '',
-  description: '',
-  mainImageUrl: '',
-  careLevel: 'EASY',
-  lightRequirement: 'MEDIUM',
-  isPetFriendly: false,
-  isAirPurifying: false,
-  originRegion: '',
-  tags: [],
+  botanicalName: '', commonName: '', slug: '', description: '',
+  mainImageUrl: '', careLevel: 'EASY', lightRequirement: 'MEDIUM',
+  isPetFriendly: false, isAirPurifying: false, originRegion: '',
+  price: '', tags: [],
+  defaultWateringIntervalDays: null, defaultMistingIntervalDays: null,
+  defaultFertilizingIntervalDays: null, defaultLeafCleaningIntervalDays: null,
+  defaultRepottingIntervalDays: null, defaultPruningIntervalDays: null,
+  defaultPestCheckIntervalDays: null,
 })
 
 function oeffneModal() {
   Object.assign(neuForm, {
     botanicalName: '', commonName: '', slug: '', description: '',
     mainImageUrl: '', careLevel: 'EASY', lightRequirement: 'MEDIUM',
-    isPetFriendly: false, isAirPurifying: false, originRegion: '', tags: [],
+    isPetFriendly: false, isAirPurifying: false, originRegion: '', price: '', tags: [],
+    defaultWateringIntervalDays: null, defaultMistingIntervalDays: null,
+    defaultFertilizingIntervalDays: null, defaultLeafCleaningIntervalDays: null,
+    defaultRepottingIntervalDays: null, defaultPruningIntervalDays: null,
+    defaultPestCheckIntervalDays: null,
   })
   showNeuModal.value = true
 }
@@ -130,13 +128,11 @@ function oeffneModal() {
 async function erstellePflanze() {
   saving.value = true
   try {
-    const response = await fetch('http://localhost:8080/api/plants', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...neuForm, tags: neuForm.tags.map(name => ({ name })) }),
+    const neu = await plantsApi.createPlant({
+      ...neuForm,
+      price: neuForm.price !== '' ? Number(neuForm.price) : null,
+      tags: neuForm.tags.map(name => ({ name })),
     })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const neu = await response.json()
     rawPlants.value.push(neu)
     showNeuModal.value = false
   } catch (err) {
@@ -146,23 +142,19 @@ async function erstellePflanze() {
   }
 }
 
-function toggleTag(tagArray, tag) {
-  const idx = tagArray.indexOf(tag)
-  if (idx >= 0) tagArray.splice(idx, 1)
-  else tagArray.push(tag)
-}
-
 async function ladePflanzen() {
   try {
-    const response = await fetch('http://localhost:8080/api/plants')
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    rawPlants.value = await response.json()
+    rawPlants.value = await plantsApi.getAll()
   } catch (err) {
     error.value = err.message
     console.error('Fehler beim Laden:', err)
   } finally {
     loading.value = false
   }
+}
+
+function pflanzeEntfernt(id) {
+  rawPlants.value = rawPlants.value.filter(p => p.id !== id)
 }
 
 onMounted(ladePflanzen)
@@ -294,7 +286,7 @@ onMounted(ladePflanzen)
           v-for="pflanze in gefiltertePflanzen"
           :key="pflanze.id"
           :pflanze="pflanze"
-          @deleted="(id) => { rawPlants.value = rawPlants.value.filter(p => p.id !== id) }"
+          @deleted="pflanzeEntfernt"
         />
       </div>
 
@@ -312,79 +304,19 @@ onMounted(ladePflanzen)
           </button>
         </div>
 
-        <form class="form-grid" @submit.prevent="erstellePflanze">
-          <label>
-            <span>Botanischer Name *</span>
-            <input v-model="neuForm.botanicalName" required />
-          </label>
-          <label>
-            <span>Trivialname *</span>
-            <input v-model="neuForm.commonName" required />
-          </label>
-          <label>
-            <span>Slug *</span>
-            <input v-model="neuForm.slug" required />
-          </label>
-          <label>
-            <span>Herkunft</span>
-            <input v-model="neuForm.originRegion" />
-          </label>
-          <label class="form-full">
-            <span>Bild-URL</span>
-            <input v-model="neuForm.mainImageUrl" type="url" />
-          </label>
-          <label class="form-full">
-            <span>Beschreibung</span>
-            <textarea v-model="neuForm.description" rows="4"></textarea>
-          </label>
-          <label>
-            <span>Pflegelevel *</span>
-            <select v-model="neuForm.careLevel" required>
-              <option value="EASY">Pflegeleicht</option>
-              <option value="MEDIUM">Mittel</option>
-              <option value="HARD">Experte</option>
-            </select>
-          </label>
-          <label>
-            <span>Lichtbedarf *</span>
-            <select v-model="neuForm.lightRequirement" required>
-              <option value="LOW">Wenig Licht</option>
-              <option value="MEDIUM">Indirektes Licht</option>
-              <option value="BRIGHT">Helles, indirektes Licht</option>
-              <option value="DIRECT">Direkte Sonne</option>
-            </select>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="neuForm.isPetFriendly" />
-            <span>Haustierfreundlich</span>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="neuForm.isAirPurifying" />
-            <span>Luftreinigend</span>
-          </label>
-
-          <div class="form-full form-tags-block">
-            <span class="form-tags-label">Tags</span>
-            <div class="form-tags-pillen">
-              <button
-                v-for="tag in vordefinierteTagsListe"
-                :key="tag"
-                type="button"
-                class="form-tag-pille"
-                :class="{ aktiv: neuForm.tags.includes(tag) }"
-                @click="toggleTag(neuForm.tags, tag)"
-              >{{ tag }}</button>
-            </div>
-          </div>
-
-          <div class="form-aktionen form-full">
-            <button type="submit" class="btn-speichern" :disabled="saving">
-              {{ saving ? 'Speichere…' : 'Anlegen' }}
-            </button>
-            <button type="button" class="btn-abbrechen" @click="showNeuModal = false">
-              Abbrechen
-            </button>
-          </div>
+        <form @submit.prevent="erstellePflanze">
+          <PflanzeFormular :form="neuForm">
+            <template #aktionen>
+              <div class="form-aktionen">
+                <button type="submit" class="btn-speichern" :disabled="saving">
+                  {{ saving ? 'Speichere…' : 'Anlegen' }}
+                </button>
+                <button type="button" class="btn-abbrechen" @click="showNeuModal = false">
+                  Abbrechen
+                </button>
+              </div>
+            </template>
+          </PflanzeFormular>
         </form>
       </div>
     </div>

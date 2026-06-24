@@ -1,51 +1,63 @@
 import { ref, computed } from 'vue'
+import { useAuth0 } from '@auth0/auth0-vue'
 
-const currentRole = ref(localStorage.getItem('debug_role') || 'guest')
-const debugMode = ref(localStorage.getItem('debug_mode') === 'true')
+// Module-level — bleibt über Komponenten hinweg erhalten und ist in api.js nutzbar
+let _getTokenSilently = null
+const _userId = ref(null)
+const _isAdmin = ref(false)
+
+export async function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' }
+  if (_getTokenSilently) {
+    try {
+      const token = await _getTokenSilently()
+      headers['Authorization'] = `Bearer ${token}`
+    } catch {
+      // nicht eingeloggt
+    }
+  }
+  if (_userId.value) {
+    headers['X-User-Id'] = _userId.value
+  }
+  return headers
+}
 
 export function useAuth() {
-  const role = computed(() => currentRole.value)
+  const { isAuthenticated, user, getAccessTokenSilently } = useAuth0()
+  _getTokenSilently = getAccessTokenSilently
 
-  const userId = computed(() => {
-    if (role.value === 'guest') return null
-    // Mock User IDs für Entwicklung
-    return role.value === 'admin' ? 1 : 2
-  })
+  const isAdmin = computed(() => _isAdmin.value)
+  const userId = computed(() => _userId.value)
 
-  const isAdmin = computed(() => role.value === 'admin')
-  const isUser = computed(() => role.value === 'user')
-  const isGuest = computed(() => role.value === 'guest')
-  const isAuthenticated = computed(() => role.value !== 'guest')
-
-  function setRole(newRole) {
-    currentRole.value = newRole
-    localStorage.setItem('debug_role', newRole)
-  }
-
-  function setDebugMode(enabled) {
-    debugMode.value = enabled
-    localStorage.setItem('debug_mode', enabled ? 'true' : 'false')
-  }
-
-  // Header für API-Calls
-  function getAuthHeaders() {
-    const headers = { 'Content-Type': 'application/json' }
-    if (isAuthenticated.value && userId.value) {
-      headers['X-User-Id'] = userId.value
+  async function syncUser() {
+    if (!isAuthenticated.value || !user.value) return
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('http://localhost:8080/api/users', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          auth0Id: user.value.sub,
+          email: user.value.email,
+          name: user.value.name,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        _userId.value = data.id
+        _isAdmin.value = data.isAdmin
+      }
+    } catch (e) {
+      console.error('User sync fehlgeschlagen:', e)
     }
-    return headers
   }
 
   return {
-    role,
-    userId,
-    isAdmin,
-    isUser,
-    isGuest,
     isAuthenticated,
-    debugMode,
-    setRole,
-    setDebugMode,
+    user,
+    isAdmin,
+    userId,
+    syncUser,
     getAuthHeaders,
   }
 }

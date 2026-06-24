@@ -3,6 +3,9 @@
 import { ref, onMounted, computed, watch, reactive } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { plantsApi } from '@/services/api'
+import PflanzeFormular from '@/components/PflanzeFormular.vue'
+import { useCartStore } from '@/stores/cart'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,11 +17,6 @@ const error = ref(null)
 
 // Edit-Modus
 const isEditing = ref(false)
-const vordefinierteTagsListe = [
-  'Anfänger', 'Experte', 'Luftreinigend', 'Haustierfreundlich',
-  'Tropisch', 'Sukkulente', 'Rankpflanze', 'Schattenpflanze',
-  'Sonnenliebend', 'Hängepflanze', 'Blühend', 'Heilpflanze', 'Zimmerpflanze',
-]
 
 const editForm = reactive({
   botanicalName: '',
@@ -31,10 +29,33 @@ const editForm = reactive({
   isPetFriendly: false,
   isAirPurifying: false,
   originRegion: '',
+  price: '',
   tags: [],
+  defaultWateringIntervalDays: null,
+  defaultMistingIntervalDays: null,
+  defaultFertilizingIntervalDays: null,
+  defaultLeafCleaningIntervalDays: null,
+  defaultRepottingIntervalDays: null,
+  defaultPruningIntervalDays: null,
+  defaultPestCheckIntervalDays: null,
 })
 const saving = ref(false)
 const deleting = ref(false)
+const cart = useCartStore()
+
+const imWarenkorb = computed(() =>
+  rawPlant.value ? cart.items.some(i => i.plant.id === rawPlant.value.id) : false
+)
+
+function addToCart() {
+  if (!rawPlant.value) return
+  cart.addItem({
+    id: rawPlant.value.id,
+    name: rawPlant.value.commonName,
+    bild: rawPlant.value.mainImageUrl,
+    price: rawPlant.value.price,
+  })
+}
 
 const careMap = {
   EASY:   { stufe: 'leicht',  label: 'Pflegeleicht', icon: 'local_florist' },
@@ -98,7 +119,15 @@ function startEdit() {
     isPetFriendly:    p.isPetFriendly,
     isAirPurifying:   p.isAirPurifying,
     originRegion:     p.originRegion      ?? '',
+    price:            p.price             ?? '',
     tags:             (p.tags ?? []).map(t => t.name),
+    defaultWateringIntervalDays:     p.defaultWateringIntervalDays     ?? null,
+    defaultMistingIntervalDays:      p.defaultMistingIntervalDays      ?? null,
+    defaultFertilizingIntervalDays:  p.defaultFertilizingIntervalDays  ?? null,
+    defaultLeafCleaningIntervalDays: p.defaultLeafCleaningIntervalDays ?? null,
+    defaultRepottingIntervalDays:    p.defaultRepottingIntervalDays    ?? null,
+    defaultPruningIntervalDays:      p.defaultPruningIntervalDays      ?? null,
+    defaultPestCheckIntervalDays:    p.defaultPestCheckIntervalDays    ?? null,
   })
   isEditing.value = true
 }
@@ -107,22 +136,17 @@ function cancelEdit() {
   isEditing.value = false
 }
 
-function toggleTag(tag) {
-  const idx = editForm.tags.indexOf(tag)
-  if (idx >= 0) editForm.tags.splice(idx, 1)
-  else editForm.tags.push(tag)
-}
-
 async function speichern() {
   saving.value = true
   try {
-    const response = await fetch(`http://localhost:8080/api/plants/${route.params.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editForm, tags: editForm.tags.map(name => ({ name })) }),
-    })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    rawPlant.value = await response.json()
+    rawPlant.value = await plantsApi.updatePlant(
+      route.params.id,
+      {
+        ...editForm,
+        price: editForm.price !== '' ? Number(editForm.price) : null,
+        tags: editForm.tags.map(name => ({ name })),
+      },
+    )
     isEditing.value = false
   } catch (err) {
     alert('Fehler beim Speichern: ' + err.message)
@@ -224,9 +248,15 @@ watch(() => route.params.id, (neueId) => {
           </div>
 
           <div class="aktionen">
-            <button class="btn-kaufen">
-              In den Warenkorb
-              <span class="material-symbols-outlined">add_shopping_cart</span>
+            <button
+              class="btn-kaufen"
+              :class="{ 'im-warenkorb': imWarenkorb }"
+              @click="addToCart"
+            >
+              {{ imWarenkorb ? 'Im Warenkorb' : 'In den Warenkorb' }}
+              <span class="material-symbols-outlined">
+                {{ imWarenkorb ? 'shopping_cart' : 'add_shopping_cart' }}
+              </span>
             </button>
             <button v-if="isAdmin" class="btn-edit" @click="startEdit">
               <span class="material-symbols-outlined">edit</span>
@@ -254,83 +284,23 @@ watch(() => route.params.id, (neueId) => {
           </button>
         </div>
 
-        <form class="form-grid" @submit.prevent="speichern">
-          <label>
-            <span>Botanischer Name *</span>
-            <input v-model="editForm.botanicalName" required />
-          </label>
-          <label>
-            <span>Trivialname *</span>
-            <input v-model="editForm.commonName" required />
-          </label>
-          <label>
-            <span>Slug *</span>
-            <input v-model="editForm.slug" required />
-          </label>
-          <label>
-            <span>Herkunft</span>
-            <input v-model="editForm.originRegion" />
-          </label>
-          <label class="form-full">
-            <span>Bild-URL</span>
-            <input v-model="editForm.mainImageUrl" type="url" />
-          </label>
-          <label class="form-full">
-            <span>Beschreibung</span>
-            <textarea v-model="editForm.description" rows="4"></textarea>
-          </label>
-          <label>
-            <span>Pflegelevel *</span>
-            <select v-model="editForm.careLevel" required>
-              <option value="EASY">Pflegeleicht</option>
-              <option value="MEDIUM">Mittel</option>
-              <option value="HARD">Experte</option>
-            </select>
-          </label>
-          <label>
-            <span>Lichtbedarf *</span>
-            <select v-model="editForm.lightRequirement" required>
-              <option value="LOW">Wenig Licht</option>
-              <option value="MEDIUM">Indirektes Licht</option>
-              <option value="BRIGHT">Helles, indirektes Licht</option>
-              <option value="DIRECT">Direkte Sonne</option>
-            </select>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="editForm.isPetFriendly" />
-            <span>Haustierfreundlich</span>
-          </label>
-          <label class="form-checkbox">
-            <input type="checkbox" v-model="editForm.isAirPurifying" />
-            <span>Luftreinigend</span>
-          </label>
-
-          <div class="form-full form-tags-block">
-            <span class="form-tags-label">Tags</span>
-            <div class="form-tags-pillen">
-              <button
-                v-for="tag in vordefinierteTagsListe"
-                :key="tag"
-                type="button"
-                class="form-tag-pille"
-                :class="{ aktiv: editForm.tags.includes(tag) }"
-                @click="toggleTag(tag)"
-              >{{ tag }}</button>
-            </div>
-          </div>
-
-          <div class="form-aktionen form-full">
-            <button type="submit" class="btn-speichern" :disabled="saving">
-              {{ saving ? 'Speichere…' : 'Speichern' }}
-            </button>
-            <button type="button" class="btn-abbrechen" @click="cancelEdit">
-              Abbrechen
-            </button>
-            <button v-if="isAdmin" type="button" class="btn-delete" @click="loeschen" :disabled="deleting">
-              <span class="material-symbols-outlined">delete</span>
-              {{ deleting ? 'Lösche…' : 'Löschen' }}
-            </button>
-          </div>
+        <form @submit.prevent="speichern">
+          <PflanzeFormular :form="editForm">
+            <template #aktionen>
+              <div class="form-aktionen">
+                <button type="submit" class="btn-speichern" :disabled="saving">
+                  {{ saving ? 'Speichere…' : 'Speichern' }}
+                </button>
+                <button type="button" class="btn-abbrechen" @click="cancelEdit">
+                  Abbrechen
+                </button>
+                <button v-if="isAdmin" type="button" class="btn-delete" @click="loeschen" :disabled="deleting">
+                  <span class="material-symbols-outlined">delete</span>
+                  {{ deleting ? 'Lösche…' : 'Löschen' }}
+                </button>
+              </div>
+            </template>
+          </PflanzeFormular>
         </form>
       </div>
     </div>
@@ -477,9 +447,8 @@ watch(() => route.params.id, (neueId) => {
   align-self: flex-start;
 }
 
-.btn-kaufen:hover {
-  background-color: var(--gruen-dunkel);
-}
+.btn-kaufen:hover { background-color: var(--gruen-dunkel); }
+.btn-kaufen.im-warenkorb { background-color: var(--gruen-dunkel); }
 
 .btn-zurueck {
   display: inline-block;
@@ -545,40 +514,6 @@ watch(() => route.params.id, (neueId) => {
   letter-spacing: 0.04em;
 }
 
-/* ── Tag-Auswahl im Formular ── */
-.form-tags-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-tags-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--gruen-dunkel);
-}
-
-.form-tags-pillen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-}
-
-.form-tag-pille {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-rund);
-  border: 1px solid var(--flaeche-dunkel);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-leise);
-  background: transparent;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.form-tag-pille:hover { background-color: var(--flaeche); }
-.form-tag-pille.aktiv { background-color: var(--gruen); color: #fff; border-color: var(--gruen); }
-
 /* ── Edit Modal ── */
 .modal-overlay {
   position: fixed;
@@ -628,48 +563,6 @@ watch(() => route.params.id, (neueId) => {
 .modal-schliessen:hover { background-color: var(--flaeche-dunkel); }
 .modal-schliessen .material-symbols-outlined { font-size: 1.25rem; }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-}
-
-.form-full { grid-column: 1 / -1; }
-
-.form-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  color: var(--gruen-dunkel);
-  font-weight: 500;
-}
-
-.form-grid input,
-.form-grid textarea,
-.form-grid select {
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--flaeche-dunkel);
-  border-radius: var(--radius);
-  background: #fff;
-  font-size: 0.875rem;
-  font-family: inherit;
-}
-
-.form-grid input:focus,
-.form-grid textarea:focus,
-.form-grid select:focus {
-  outline: none;
-  border-color: var(--gruen);
-}
-
-.form-grid .form-checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
-.form-grid .form-checkbox input { width: 1rem; height: 1rem; }
-
 .form-aktionen {
   display: flex;
   gap: 0.75rem;
@@ -703,8 +596,6 @@ watch(() => route.params.id, (neueId) => {
 .btn-abbrechen:hover { background-color: var(--flaeche-dunkel); }
 
 @media (max-width: 640px) {
-  .form-grid { grid-template-columns: 1fr; }
-
   .detail-seite {
     padding-left: 1rem;
     padding-right: 1rem;

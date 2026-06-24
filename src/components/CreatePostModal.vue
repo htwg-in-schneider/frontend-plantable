@@ -18,7 +18,7 @@ const form = reactive({
   imageUrl: '',
 })
 
-const charCount = ref(0)
+//const charCount = ref(0)
 
 function toggleTag(tag) {
   const idx = form.tags.indexOf(tag)

@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { plantsApi } from '@/services/api'
+import { useCartStore } from '@/stores/cart'
 
 const props = defineProps({
   pflanze: {
@@ -12,11 +13,24 @@ const props = defineProps({
 
 const emit = defineEmits(['deleted'])
 const { isAdmin } = useAuth()
+const cart = useCartStore()
 const deleting = ref(false)
+
+const imWarenkorb = computed(() =>
+  cart.items.some(i => i.plant.id === props.pflanze.id)
+)
+
+function addToCart() {
+  cart.addItem({
+    id: props.pflanze.id,
+    name: props.pflanze.name,
+    bild: props.pflanze.bild,
+    price: props.pflanze.preis,
+  })
+}
 
 async function deletePlant() {
   if (!window.confirm(`Pflanze "${props.pflanze.name}" wirklich löschen?`)) return
-
   deleting.value = true
   try {
     await plantsApi.deletePlant(props.pflanze.id)
@@ -60,8 +74,15 @@ async function deletePlant() {
           {{ pflanze.preis.toFixed(2).replace('.', ',') }} €
         </span>
         <span class="pflanze-preis" v-else>Preis auf Anfrage</span>
-        <button class="warenkorb-btn" :aria-label="`${pflanze.name} in den Warenkorb`">
-          <span class="material-symbols-outlined">add_shopping_cart</span>
+        <button
+          class="warenkorb-btn"
+          :class="{ 'im-warenkorb': imWarenkorb }"
+          :aria-label="`${pflanze.name} in den Warenkorb`"
+          @click="addToCart"
+        >
+          <span class="material-symbols-outlined">
+            {{ imWarenkorb ? 'shopping_cart' : 'add_shopping_cart' }}
+          </span>
         </button>
       </div>
     </div>
@@ -121,22 +142,10 @@ async function deletePlant() {
   z-index: 5;
 }
 
-.pflanzenkarte:hover .btn-delete-admin {
-  opacity: 1;
-}
-
-.btn-delete-admin:hover:not(:disabled) {
-  background-color: #ba1a1a;
-}
-
-.btn-delete-admin:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-delete-admin .material-symbols-outlined {
-  font-size: 1.25rem;
-}
+.pflanzenkarte:hover .btn-delete-admin { opacity: 1; }
+.btn-delete-admin:hover:not(:disabled) { background-color: #ba1a1a; }
+.btn-delete-admin:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-delete-admin .material-symbols-outlined { font-size: 1.25rem; }
 
 .pflanzen-info {
   padding: 1.5rem;
@@ -164,7 +173,6 @@ async function deletePlant() {
 }
 
 .pflege-badge .material-symbols-outlined { font-size: 0.75rem; }
-
 .pflege-badge.leicht  { background-color: #3a4711; color: #d9eaa3; }
 .pflege-badge.mittel  { background-color: rgba(255, 181, 155, 0.2); color: var(--terrakotta); }
 .pflege-badge.experte { background-color: #ffdad6; color: #ba1a1a; }
@@ -209,5 +217,6 @@ async function deletePlant() {
 }
 
 .warenkorb-btn:hover { background-color: var(--gruen-dunkel); }
+.warenkorb-btn.im-warenkorb { background-color: var(--gruen-dunkel); }
 .warenkorb-btn .material-symbols-outlined { font-size: 1.25rem; }
 </style>
