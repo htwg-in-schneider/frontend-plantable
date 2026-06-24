@@ -54,6 +54,8 @@ export const communityApi = {
 export const usersApi = {
   createOrGetUser: (userData) => apiCall('/users', 'POST', userData),
   getUser: (id) => apiCall(`/users/${id}`),
+  getAllUsers: () => apiCall('/users'),
+  updateUser: (id, data) => apiCall(`/users/${id}`, 'PUT', data),
 }
 
 // Plants API

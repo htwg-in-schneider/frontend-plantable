@@ -2,7 +2,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import { communityApi, plantsApi } from '@/services/api'
+import { communityApi, plantsApi, usersApi } from '@/services/api'
 import PflanzeFormular from '@/components/PflanzeFormular.vue'
 
 const router = useRouter()
@@ -191,10 +191,65 @@ function formatDate(dateString) {
   })
 }
 
+// ── BENUTZER ────────────────────────────────────────────
+const users = ref([])
+const usersLoading = ref(false)
+const usersError = ref(null)
+const userSuche = ref('')
+const showUserModal = ref(false)
+const editingUser = ref(null)
+const userForm = reactive({ name: '', isAdmin: false })
+const userSaving = ref(false)
+
+const gefilterteBenutzer = computed(() => {
+  const q = userSuche.value.toLowerCase().trim()
+  if (!q) return users.value
+  return users.value.filter(u =>
+    u.name?.toLowerCase().includes(q) ||
+    u.email?.toLowerCase().includes(q)
+  )
+})
+
+async function ladeBenutzer() {
+  usersLoading.value = true
+  usersError.value = null
+  try {
+    users.value = await usersApi.getAllUsers()
+  } catch (err) {
+    usersError.value = err.message
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+function oeffneUserEditModal(u) {
+  editingUser.value = u
+  Object.assign(userForm, { name: u.name ?? '', isAdmin: u.isAdmin ?? false })
+  showUserModal.value = true
+}
+
+async function speichereUser() {
+  userSaving.value = true
+  try {
+    const updated = await usersApi.updateUser(editingUser.value.id, {
+      name: userForm.name,
+      isAdmin: userForm.isAdmin,
+    })
+    const idx = users.value.findIndex(u => u.id === editingUser.value.id)
+    if (idx >= 0) users.value[idx] = updated
+    showUserModal.value = false
+  } catch (err) {
+    alert('Fehler beim Speichern: ' + err.message)
+  } finally {
+    userSaving.value = false
+  }
+}
+
 function onTabChange(tab) {
   activeTab.value = tab
   if (tab === 'pflanzen' && rawPlants.value.length === 0) ladePflanzen()
   if (tab === 'community' && posts.value.length === 0) ladePosts()
+  if (tab === 'benutzer' && users.value.length === 0) ladeBenutzer()
 }
 
 onMounted(ladePflanzen)
@@ -338,13 +393,79 @@ onMounted(ladePflanzen)
 
     <!-- ── TAB: BENUTZER ── -->
     <section v-else-if="activeTab === 'benutzer'" class="tab-inhalt">
-      <div class="placeholder">
-        <span class="material-symbols-outlined placeholder-icon">group</span>
-        <h3>Benutzerverwaltung</h3>
-        <p>Wird implementiert sobald die Benutzer-Authentifizierung eingerichtet ist.</p>
+      <div class="tab-kopf">
+        <div class="such-wrapper">
+          <span class="material-symbols-outlined">search</span>
+          <input v-model="userSuche" type="search" placeholder="Name oder E-Mail suchen…" class="such-input" />
+        </div>
+        <span class="zaehler">{{ gefilterteBenutzer.length }} Benutzer</span>
+      </div>
+
+      <div v-if="usersLoading" class="status-meldung">Benutzer werden geladen…</div>
+      <div v-else-if="usersError" class="status-meldung fehler">{{ usersError }}</div>
+
+      <div v-else class="liste">
+        <div v-if="gefilterteBenutzer.length === 0" class="leer">Keine Benutzer gefunden.</div>
+        <div
+          v-for="u in gefilterteBenutzer"
+          :key="u.id"
+          class="liste-zeile"
+        >
+          <div class="post-avatar">{{ u.name?.[0]?.toUpperCase() || 'U' }}</div>
+          <div class="liste-info">
+            <span class="liste-name">{{ u.name || 'Kein Name' }}</span>
+            <span class="liste-latin">{{ u.email }}</span>
+          </div>
+          <div class="liste-badges">
+            <span v-if="u.isAdmin" class="badge badge-admin">Admin</span>
+            <span v-else class="badge badge-user">Benutzer</span>
+          </div>
+          <span class="liste-preis">{{ formatDate(u.createdAt) }}</span>
+          <div class="liste-aktionen">
+            <button class="btn-aktion bearbeiten" @click="oeffneUserEditModal(u)" title="Bearbeiten">
+              <span class="material-symbols-outlined">edit</span>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
+
+  <!-- ── USER MODAL ── -->
+  <Teleport to="body">
+    <div v-if="showUserModal" class="modal-overlay" @click.self="showUserModal = false">
+      <div class="modal">
+        <div class="modal-kopf">
+          <h2>Benutzer bearbeiten</h2>
+          <button class="modal-schliessen" @click="showUserModal = false">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form @submit.prevent="speichereUser">
+          <div class="benutzer-form">
+            <div class="form-gruppe">
+              <label class="form-label">E-Mail</label>
+              <input type="email" :value="editingUser?.email" readonly class="form-input readonly" />
+            </div>
+            <div class="form-gruppe">
+              <label class="form-label">Name</label>
+              <input v-model="userForm.name" type="text" required class="form-input" />
+            </div>
+            <div class="form-gruppe form-checkbox-zeile">
+              <input v-model="userForm.isAdmin" type="checkbox" id="user-admin-cb" />
+              <label for="user-admin-cb">Administrator-Rechte</label>
+            </div>
+          </div>
+          <div class="form-aktionen">
+            <button type="submit" class="btn-speichern" :disabled="userSaving">
+              {{ userSaving ? 'Speichere…' : 'Speichern' }}
+            </button>
+            <button type="button" class="btn-abbrechen" @click="showUserModal = false">Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </Teleport>
 
   <!-- ── PFLANZE MODAL ── -->
   <Teleport to="body">
@@ -589,6 +710,8 @@ onMounted(ladePflanzen)
 .badge-pflege { background-color: rgba(45, 71, 57, 0.1); color: var(--gruen); }
 .badge-licht  { background-color: rgba(255, 181, 155, 0.15); color: var(--terrakotta); }
 .badge-tag    { background-color: var(--flaeche); color: var(--text-leise); }
+.badge-admin  { background-color: rgba(186, 26, 26, 0.1); color: #ba1a1a; }
+.badge-user   { background-color: rgba(45, 71, 57, 0.1); color: var(--gruen); }
 
 .liste-preis {
   font-size: 0.875rem;
@@ -636,6 +759,27 @@ onMounted(ladePflanzen)
   border-radius: var(--radius);
 }
 .status-meldung.fehler { color: #ba1a1a; background: #ffdad6; }
+
+/* ── Benutzer-Formular ── */
+.benutzer-form { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+.form-gruppe { display: flex; flex-direction: column; gap: 0.375rem; }
+.form-label { font-size: 0.8rem; font-weight: 600; color: var(--gruen-dunkel); }
+.form-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--flaeche-dunkel);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  color: var(--gruen-dunkel);
+  font-family: inherit;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-input:focus { border-color: var(--gruen); }
+.form-input.readonly { background: var(--flaeche-hell); color: var(--text-gedimmt); cursor: default; }
+.form-checkbox-zeile { flex-direction: row; align-items: center; gap: 0.5rem; }
+.form-checkbox-zeile input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--gruen); cursor: pointer; }
+.form-checkbox-zeile label { font-size: 0.875rem; color: var(--gruen-dunkel); cursor: pointer; }
 
 /* ── Placeholder ── */
 .placeholder {

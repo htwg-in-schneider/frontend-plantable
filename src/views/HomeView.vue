@@ -16,14 +16,14 @@ import palmImg from '@/assets/images/palm.png'
           <h1>Monstera <br/><em>Deliciosa</em></h1>
           <p>Ein lebendiges Kunstwerk – mit ihren großen, gefensterten Blättern bringt sie tropisches Flair in jeden Raum.</p>
           <div class="hero-kaufen">
-            <button class="btn-kaufen">
+            <RouterLink to="/product/1" class="btn-kaufen">
               Jetzt kaufen
               <span class="material-symbols-outlined">arrow_forward</span>
-            </button>
+            </RouterLink>
             <div class="preis-block">
-              <span class="preis">48,00 €</span>
+              <span class="preis">34,99 €</span>
               <span class="preis-hinweis">inkl. Keramiktopf</span>
-            </div>
+            </div>  
           </div>
         </div>
 
