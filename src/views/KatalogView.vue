@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted, computed, reactive } from 'vue'
+import { useAuth } from '@/composables/useAuth'
 import PflanzenKarte from '@/components/PflanzenKarte.vue'
+
+const { isAdmin } = useAuth()
 
 const pflegeOptionen = [
   { wert: 'leicht',  label: 'Pflegeleicht' },
@@ -252,7 +255,7 @@ onMounted(ladePflanzen)
           <div>
             <h1 class="katalog-titel">Botanisches Archiv</h1>
             <p class="katalog-beschreibung">
-              Entdecke seltene Exemplare und beliebte Klassiker, kategorisiert für dein Wohnumfeld.
+
             </p>
           </div>
 
@@ -271,7 +274,7 @@ onMounted(ladePflanzen)
               class="such-input"
             />
           </div>
-          <button class="btn-neu" @click="oeffneModal">
+          <button class="btn-neu" v-if="isAdmin" @click="oeffneModal">
             <span class="material-symbols-outlined">add</span>
             <span class="btn-neu-text">Neue Pflanze</span>
           </button>
@@ -287,7 +290,12 @@ onMounted(ladePflanzen)
       </div>
 
       <div v-else class="pflanzen-raster">
-        <PflanzenKarte v-for="pflanze in gefiltertePflanzen" :key="pflanze.id" :pflanze="pflanze" />
+        <PflanzenKarte
+          v-for="pflanze in gefiltertePflanzen"
+          :key="pflanze.id"
+          :pflanze="pflanze"
+          @deleted="(id) => { rawPlants.value = rawPlants.value.filter(p => p.id !== id) }"
+        />
       </div>
 
     </section>

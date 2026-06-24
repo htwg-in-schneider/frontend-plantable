@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import DebugRoleSelector from './DebugRoleSelector.vue'
+
 
 const menuOffen = ref(false)
+
 
 function toggleMenu() {
   menuOffen.value = !menuOffen.value
@@ -21,9 +24,10 @@ function toggleMenu() {
       </nav>
 
       <div class="aktionen">
-        <button aria-label="Warenkorb">
+        <DebugRoleSelector />
+        <RouterLink to="/warenkorb" class="icon-btn" aria-label="Warenkorb">
           <span class="material-symbols-outlined">shopping_cart</span>
-        </button> 
+        </RouterLink>
         <button aria-label="Profil" class="desktop-only">
           <span class="material-symbols-outlined">person</span>
         </button>
@@ -37,4 +41,4 @@ function toggleMenu() {
     </div>
     <div class="trennlinie"></div>
   </header>
-</template> 
+</template>

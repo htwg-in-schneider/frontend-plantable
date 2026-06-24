@@ -1,10 +1,32 @@
 <script setup>
-defineProps({
+import { ref } from 'vue'
+import { useAuth } from '@/composables/useAuth'
+import { plantsApi } from '@/services/api'
+
+const props = defineProps({
   pflanze: {
     type: Object,
     required: true,
   },
 })
+
+const emit = defineEmits(['deleted'])
+const { isAdmin } = useAuth()
+const deleting = ref(false)
+
+async function deletePlant() {
+  if (!window.confirm(`Pflanze "${props.pflanze.name}" wirklich löschen?`)) return
+
+  deleting.value = true
+  try {
+    await plantsApi.deletePlant(props.pflanze.id)
+    emit('deleted', props.pflanze.id)
+  } catch (error) {
+    alert('Fehler beim Löschen: ' + error.message)
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -13,6 +35,15 @@ defineProps({
       <RouterLink :to="{ name: 'pflanze-detail', params: { id: pflanze.id } }" class="bild-link">
         <img :src="pflanze.bild" :alt="pflanze.name" />
       </RouterLink>
+      <button
+        v-if="isAdmin"
+        @click="deletePlant"
+        :disabled="deleting"
+        class="btn-delete-admin"
+        title="Nur für Admins"
+      >
+        <span class="material-symbols-outlined">delete</span>
+      </button>
     </div>
     <div class="pflanzen-info">
       <div class="pflanzen-kopf">
@@ -53,6 +84,7 @@ defineProps({
   aspect-ratio: 4 / 5;
   overflow: hidden;
   background-color: var(--flaeche-hell);
+  position: relative;
 }
 
 .bild-link {
@@ -69,6 +101,42 @@ defineProps({
 }
 
 .pflanzenkarte:hover .pflanzenbild img { transform: scale(1.1); }
+
+.btn-delete-admin {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background-color: rgba(186, 26, 26, 0.9);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background-color 0.2s;
+  z-index: 5;
+}
+
+.pflanzenkarte:hover .btn-delete-admin {
+  opacity: 1;
+}
+
+.btn-delete-admin:hover:not(:disabled) {
+  background-color: #ba1a1a;
+}
+
+.btn-delete-admin:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-delete-admin .material-symbols-outlined {
+  font-size: 1.25rem;
+}
 
 .pflanzen-info {
   padding: 1.5rem;

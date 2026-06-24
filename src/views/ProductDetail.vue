@@ -2,9 +2,11 @@
 <script setup>
 import { ref, onMounted, computed, watch, reactive } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 
 const route = useRoute()
 const router = useRouter()
+const { isAdmin } = useAuth()
 
 const rawPlant = ref(null)
 const loading = ref(true)
@@ -226,11 +228,11 @@ watch(() => route.params.id, (neueId) => {
               In den Warenkorb
               <span class="material-symbols-outlined">add_shopping_cart</span>
             </button>
-            <button class="btn-edit" @click="startEdit">
+            <button v-if="isAdmin" class="btn-edit" @click="startEdit">
               <span class="material-symbols-outlined">edit</span>
               Bearbeiten
             </button>
-            <button class="btn-delete" @click="loeschen" :disabled="deleting">
+            <button v-if="isAdmin" class="btn-delete" @click="loeschen" :disabled="deleting">
               <span class="material-symbols-outlined">delete</span>
               {{ deleting ? 'Lösche…' : 'Löschen' }}
             </button>
@@ -324,7 +326,7 @@ watch(() => route.params.id, (neueId) => {
             <button type="button" class="btn-abbrechen" @click="cancelEdit">
               Abbrechen
             </button>
-            <button type="button" class="btn-delete" @click="loeschen" :disabled="deleting">
+            <button v-if="isAdmin" type="button" class="btn-delete" @click="loeschen" :disabled="deleting">
               <span class="material-symbols-outlined">delete</span>
               {{ deleting ? 'Lösche…' : 'Löschen' }}
             </button>

@@ -1,4 +1,5 @@
 <script setup>
+import { RouterLink } from 'vue-router'
 </script>
 
 <template>
@@ -15,7 +16,7 @@
         <div>
           <h4>Entdecken</h4>
           <ul>
-            <li><a href="#">Katalog</a></li>
+            <li><RouterLink to="/katalog">Katalog</RouterLink></li>
             <li><a href="#">Raritäten</a></li>
             <li><a href="#">Pflegebibliothek</a></li>
           </ul>
@@ -31,10 +32,17 @@
         </div>
 
         <div>
-          <h4>Archiv</h4>
-          <p class="footer-copyright">© 2026 Plantable Botanisches Archiv. Alle Rechte vorbehalten.</p>
+          <h4>Rechtliches</h4>
+          <ul>
+            <li><RouterLink to="/impressum">Impressum</RouterLink></li>
+            <li><RouterLink to="/datenschutz">Datenschutz</RouterLink></li>
+          </ul>
         </div>
 
+      </div>
+
+      <div class="footer-bottom">
+        <p class="footer-copyright">© 2026 Plantable Botanisches Archiv. Alle Rechte vorbehalten.</p>
       </div>
     </div>
   </footer>
