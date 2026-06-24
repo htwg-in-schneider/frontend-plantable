@@ -33,7 +33,8 @@ export function useAuth() {
     if (!isAuthenticated.value || !user.value) return
     try {
       const headers = await getAuthHeaders()
-      const res = await fetch('http://localhost:8080/api/users', {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/$/, '')
+      const res = await fetch(`${apiBase}/api/users`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
