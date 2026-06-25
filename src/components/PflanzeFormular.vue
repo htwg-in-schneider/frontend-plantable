@@ -1,7 +1,7 @@
 <script setup>
 import PflegeIntervallModul from './PflegeIntervallModul.vue'
 
-defineProps({
+const props = defineProps({
   form: { type: Object, required: true },
 })
 
@@ -11,10 +11,10 @@ const vordefinierteTagsListe = [
   'Sonnenliebend', 'Hängepflanze', 'Blühend', 'Heilpflanze', 'Zimmerpflanze',
 ]
 
-function toggleTag(form, tag) {
-  const idx = form.tags.indexOf(tag)
-  if (idx >= 0) form.tags.splice(idx, 1)
-  else form.tags.push(tag)
+function toggleTag(tag) {
+  const idx = props.form.tags.indexOf(tag)
+  if (idx >= 0) props.form.tags.splice(idx, 1)
+  else props.form.tags.push(tag)
 }
 </script>
 
@@ -83,7 +83,7 @@ function toggleTag(form, tag) {
           type="button"
           class="tag-pille"
           :class="{ aktiv: form.tags.includes(tag) }"
-          @click="toggleTag(form, tag)"
+          @click="toggleTag(tag)"
         >{{ tag }}</button>
       </div>
     </div>
@@ -134,10 +134,10 @@ function toggleTag(form, tag) {
   border-color: var(--gruen);
 }
 
-.form-checkbox {
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
+.form-grid label.form-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 .form-checkbox input { width: 1rem; height: 1rem; }
 

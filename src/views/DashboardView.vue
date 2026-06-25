@@ -59,6 +59,12 @@ const pflegeOptionen = [
   { wert: 'experte', label: 'Experte' },
 ]
 
+const aufgabenGruppen = [
+  { key: 'OVERDUE',  titel: 'Überfällig',  icon: 'warning',  klasse: 'ueberfaellig' },
+  { key: 'DUE',      titel: 'Heute fällig', icon: 'today',    klasse: 'heute', heuteLabel: true },
+  { key: 'UPCOMING', titel: 'Demnächst',    icon: 'schedule', klasse: 'upcoming', buttonKlein: true },
+]
+
 // ── Computed ──────────────────────────────────────────────────────────────────
 const ueberfaelligCount = computed(() => pflegeaufgaben.value.OVERDUE?.length ?? 0)
 const heuteCount = computed(() => pflegeaufgaben.value.DUE?.length ?? 0)
@@ -291,157 +297,62 @@ onMounted(() => {
         </template>
 
         <template v-else>
-          <!-- OVERDUE -->
-          <div v-if="pflegeaufgaben.OVERDUE?.length > 0" class="aufgaben-gruppe">
-            <div class="gruppe-kopf ueberfaellig-kopf">
-              <span class="material-symbols-outlined">warning</span>
-              <h2>Überfällig</h2>
-              <span class="gruppe-count">{{ pflegeaufgaben.OVERDUE.length }}</span>
-            </div>
-            <div class="aufgaben-liste">
-              <div
-                v-for="item in pflegeaufgaben.OVERDUE"
-                :key="`${item.userPlantId}-${item.type}`"
-                class="aufgaben-karte ueberfaellig-karte"
-              >
-                <img
-                  :src="item.plantImageUrl"
-                  :alt="item.plantCommonName"
-                  class="aufgabe-bild"
-                />
-                <div class="aufgabe-info">
-                  <div class="aufgabe-pflanze">
-                    {{ item.plantCommonName }}
-                    <span v-if="item.nickname" class="spitzname">„{{ item.nickname }}"</span>
-                  </div>
-                  <div class="aufgabe-typ">
-                    <span class="material-symbols-outlined typ-icon">{{ careTypeInfo[item.type]?.icon }}</span>
-                    {{ careTypeInfo[item.type]?.label }}
-                    <span class="faellig-label ueberfaellig-label">{{ formatFaellig(item.dueDate) }}</span>
-                  </div>
-                </div>
-                <div class="aufgabe-aktionen">
-                  <button
-                    class="btn-erledigt"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'DONE')"
-                  >
-                    <span class="material-symbols-outlined">check</span>
-                    Erledigt
-                  </button>
-                  <button
-                    v-if="item.category === 'REMINDER'"
-                    class="btn-ueberspringen"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'SKIPPED')"
-                  >
-                    <span class="material-symbols-outlined">skip_next</span>
-                    Überspringen
-                  </button>
-                </div>
+          <div
+            v-for="gruppe in aufgabenGruppen"
+            :key="gruppe.key"
+          >
+            <div v-if="pflegeaufgaben[gruppe.key]?.length > 0" class="aufgaben-gruppe">
+              <div class="gruppe-kopf" :class="`${gruppe.klasse}-kopf`">
+                <span class="material-symbols-outlined">{{ gruppe.icon }}</span>
+                <h2>{{ gruppe.titel }}</h2>
+                <span class="gruppe-count">{{ pflegeaufgaben[gruppe.key].length }}</span>
               </div>
-            </div>
-          </div>
-
-          <!-- DUE TODAY -->
-          <div v-if="pflegeaufgaben.DUE?.length > 0" class="aufgaben-gruppe">
-            <div class="gruppe-kopf heute-kopf">
-              <span class="material-symbols-outlined">today</span>
-              <h2>Heute fällig</h2>
-              <span class="gruppe-count">{{ pflegeaufgaben.DUE.length }}</span>
-            </div>
-            <div class="aufgaben-liste">
-              <div
-                v-for="item in pflegeaufgaben.DUE"
-                :key="`${item.userPlantId}-${item.type}`"
-                class="aufgaben-karte heute-karte"
-              >
-                <img
-                  :src="item.plantImageUrl"
-                  :alt="item.plantCommonName"
-                  class="aufgabe-bild"
-                />
-                <div class="aufgabe-info">
-                  <div class="aufgabe-pflanze">
-                    {{ item.plantCommonName }}
-                    <span v-if="item.nickname" class="spitzname">„{{ item.nickname }}"</span>
+              <div class="aufgaben-liste">
+                <div
+                  v-for="item in pflegeaufgaben[gruppe.key]"
+                  :key="`${item.userPlantId}-${item.type}`"
+                  class="aufgaben-karte"
+                  :class="`${gruppe.klasse}-karte`"
+                >
+                  <img
+                    :src="item.plantImageUrl"
+                    :alt="item.plantCommonName"
+                    class="aufgabe-bild"
+                  />
+                  <div class="aufgabe-info">
+                    <div class="aufgabe-pflanze">
+                      {{ item.plantCommonName }}
+                      <span v-if="item.nickname" class="spitzname">„{{ item.nickname }}"</span>
+                    </div>
+                    <div class="aufgabe-typ">
+                      <span class="material-symbols-outlined typ-icon">{{ careTypeInfo[item.type]?.icon }}</span>
+                      {{ careTypeInfo[item.type]?.label }}
+                      <span class="faellig-label" :class="`${gruppe.klasse}-label`">
+                        {{ gruppe.heuteLabel ? 'Heute' : formatFaellig(item.dueDate) }}
+                      </span>
+                    </div>
                   </div>
-                  <div class="aufgabe-typ">
-                    <span class="material-symbols-outlined typ-icon">{{ careTypeInfo[item.type]?.icon }}</span>
-                    {{ careTypeInfo[item.type]?.label }}
-                    <span class="faellig-label heute-label">Heute</span>
+                  <div class="aufgabe-aktionen">
+                    <button
+                      class="btn-erledigt"
+                      :class="{ 'btn-klein': gruppe.buttonKlein }"
+                      :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
+                      @click="aufgabeErledigen(item.userPlantId, item.type, 'DONE')"
+                    >
+                      <span class="material-symbols-outlined">check</span>
+                      Erledigt
+                    </button>
+                    <button
+                      v-if="item.category === 'REMINDER'"
+                      class="btn-ueberspringen"
+                      :class="{ 'btn-klein': gruppe.buttonKlein }"
+                      :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
+                      @click="aufgabeErledigen(item.userPlantId, item.type, 'SKIPPED')"
+                    >
+                      <span class="material-symbols-outlined">skip_next</span>
+                      Überspringen
+                    </button>
                   </div>
-                </div>
-                <div class="aufgabe-aktionen">
-                  <button
-                    class="btn-erledigt"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'DONE')"
-                  >
-                    <span class="material-symbols-outlined">check</span>
-                    Erledigt
-                  </button>
-                  <button
-                    v-if="item.category === 'REMINDER'"
-                    class="btn-ueberspringen"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'SKIPPED')"
-                  >
-                    <span class="material-symbols-outlined">skip_next</span>
-                    Überspringen
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- UPCOMING -->
-          <div v-if="pflegeaufgaben.UPCOMING?.length > 0" class="aufgaben-gruppe">
-            <div class="gruppe-kopf upcoming-kopf">
-              <span class="material-symbols-outlined">schedule</span>
-              <h2>Demnächst</h2>
-              <span class="gruppe-count">{{ pflegeaufgaben.UPCOMING.length }}</span>
-            </div>
-            <div class="aufgaben-liste">
-              <div
-                v-for="item in pflegeaufgaben.UPCOMING"
-                :key="`${item.userPlantId}-${item.type}`"
-                class="aufgaben-karte upcoming-karte"
-              >
-                <img
-                  :src="item.plantImageUrl"
-                  :alt="item.plantCommonName"
-                  class="aufgabe-bild"
-                />
-                <div class="aufgabe-info">
-                  <div class="aufgabe-pflanze">
-                    {{ item.plantCommonName }}
-                    <span v-if="item.nickname" class="spitzname">„{{ item.nickname }}"</span>
-                  </div>
-                  <div class="aufgabe-typ">
-                    <span class="material-symbols-outlined typ-icon">{{ careTypeInfo[item.type]?.icon }}</span>
-                    {{ careTypeInfo[item.type]?.label }}
-                    <span class="faellig-label upcoming-label">{{ formatFaellig(item.dueDate) }}</span>
-                  </div>
-                </div>
-                <div class="aufgabe-aktionen">
-                  <button
-                    class="btn-erledigt btn-klein"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'DONE')"
-                  >
-                    <span class="material-symbols-outlined">check</span>
-                    Erledigt
-                  </button>
-                  <button
-                    v-if="item.category === 'REMINDER'"
-                    class="btn-ueberspringen btn-klein"
-                    :disabled="inBearbeitung.has(`${item.userPlantId}-${item.type}`)"
-                    @click="aufgabeErledigen(item.userPlantId, item.type, 'SKIPPED')"
-                  >
-                    <span class="material-symbols-outlined">skip_next</span>
-                    Überspringen
-                  </button>
                 </div>
               </div>
             </div>
@@ -1015,51 +926,13 @@ onMounted(() => {
 .up-entfernen .material-symbols-outlined { font-size: 1.125rem; }
 
 /* ── Modal ─────────────────────────────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 1rem;
-}
-
 .modal {
-  background: var(--hintergrund);
-  border-radius: var(--radius);
-  padding: 2rem;
-  width: 100%;
   max-width: 900px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(62, 54, 49, 0.2);
   display: flex;
   flex-direction: column;
 }
-
-.modal-kopf {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-shrink: 0;
-}
-.modal-kopf h2 { font-size: 1.5rem; color: var(--gruen-dunkel); margin: 0; }
-
-.modal-schliessen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  color: var(--text-gedimmt);
-  transition: background-color 0.2s;
-}
-.modal-schliessen:hover { background-color: var(--flaeche-dunkel); }
-.modal-schliessen .material-symbols-outlined { font-size: 1.25rem; }
+.modal-kopf { flex-shrink: 0; }
+.modal-kopf h2 { font-size: 1.5rem; }
 
 .modal-filter {
   display: flex;

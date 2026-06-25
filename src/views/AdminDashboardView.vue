@@ -799,52 +799,7 @@ onMounted(ladePflanzen)
 .placeholder p { color: var(--text-gedimmt); max-width: 28rem; margin: 0; }
 
 /* ── Modal ── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 1rem;
-}
-
-.modal {
-  background: var(--hintergrund);
-  border-radius: var(--radius);
-  padding: 2rem;
-  width: 100%;
-  max-width: 680px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(62, 54, 49, 0.2);
-}
-
-.modal-kopf {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-kopf h2 { font-size: 1.25rem; color: var(--gruen-dunkel); margin: 0; }
-
-.modal-schliessen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  color: var(--text-gedimmt);
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.modal-schliessen:hover { background-color: var(--flaeche-dunkel); }
-.modal-schliessen .material-symbols-outlined { font-size: 1.25rem; }
+.modal { max-width: 680px; }
 
 .form-aktionen {
   display: flex;

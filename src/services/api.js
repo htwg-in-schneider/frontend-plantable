@@ -1,6 +1,6 @@
 import { getAuthHeaders } from '@/composables/useAuth'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/$/, '') + '/api'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'https://backend-plantable.onrender.com').replace(/\/$/, '') + '/api'
 
 async function apiCall(endpoint, method = 'GET', body = null) {
   const headers = await getAuthHeaders()

@@ -33,7 +33,7 @@ export function useAuth() {
     if (!isAuthenticated.value || !user.value) return
     try {
       const headers = await getAuthHeaders()
-      const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/$/, '')
+      const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'https://backend-plantable.onrender.com').replace(/\/$/, '')
       const res = await fetch(`${apiBase}/api/users`, {
         method: 'POST',
         headers,
