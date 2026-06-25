@@ -21,7 +21,7 @@ function toggleMenu() {
 }
 
 function handleLogout() {
-  logout({ logoutParams: { returnTo: window.location.origin } })
+  logout({ logoutParams: { returnTo: window.location.origin + import.meta.env.BASE_URL } })
 }
 
 function toggleProfilMenu() {

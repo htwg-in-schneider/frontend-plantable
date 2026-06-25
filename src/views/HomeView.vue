@@ -252,11 +252,13 @@ import palmImg from '@/assets/images/palm.png'
       <div class="newsletter-box">
         <img src="" alt="" class="newsletter-hintergrundbild" aria-hidden="true"/>
         <div class="newsletter-inhalt">
-          <h2><em>Lass dein Wissen wachsen.</em></h2>
-          <p>Melde dich für den Newsletter an und erhalte saisonale Pflegetipps, frühen Zugang zu seltenen Pflanzen und Infos zu Community-Events.</p>
+          <h2><em>Schreib uns eine Nachricht.</em></h2>
+          <p>Fragen zu Pflanzen, Pflege oder unserer Community? Wir freuen uns auf deine E-Mail und antworten dir persönlich.</p>
           <div class="newsletter-formular">
-            <input type="email" placeholder="Deine E-Mail-Adresse"/>
-            <button>Anmelden</button>
+            <a href="mailto:kontakt@plantable.de?subject=Kontakt%20%C3%BCber%20Plantable" class="btn-kontakt">
+              <span class="material-symbols-outlined">mail</span>
+              kontakt@plantable.de
+            </a>
           </div>
         </div>
       </div>

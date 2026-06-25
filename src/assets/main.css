@@ -918,45 +918,32 @@ header .aktionen .icon-btn:hover { opacity: 0.7; }
 
 .newsletter-formular {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  justify-content: flex-start;
 }
 
-@media (min-width: 640px) {
-  .newsletter-formular { flex-direction: row; }
-}
-
-.newsletter-formular input {
-  background-color: var(--gruen);
-  border: none;
-  border-radius: var(--radius-rund);
-  padding: 1rem 2rem;
-  flex: 1;
-  color: #fff;
-  font-family: var(--schrift-sans);
-  font-size: 1rem;
-  outline: none;
-}
-
-.newsletter-formular input::placeholder { color: rgba(152, 181, 163, 0.5); }
-
-.newsletter-formular input:focus {
-  outline: 2px solid var(--terrakotta);
-  outline-offset: 2px;
-}
-
-.newsletter-formular button {
+.btn-kontakt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
   background-color: var(--terrakotta);
   color: #fff;
   padding: 1rem 2.5rem;
   border-radius: var(--radius-rund);
   font-weight: 500;
   font-size: 1rem;
+  text-decoration: none;
   white-space: nowrap;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
-.newsletter-formular button:hover { opacity: 0.9; }
+.btn-kontakt:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.btn-kontakt .material-symbols-outlined {
+  font-size: 1.25rem;
+}
 
 /* ─────────────────────────────────────────
    Footer
