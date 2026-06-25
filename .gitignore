@@ -43,5 +43,4 @@ __screenshots__/
 
 # Environment variables
 .env.development
-.env.production
 .env.local
